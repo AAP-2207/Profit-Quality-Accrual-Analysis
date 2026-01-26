@@ -16,9 +16,9 @@ def main():
     print("PROFIT QUALITY & ACCRUAL ANALYSIS")
     print("=" * 60)
     
-    # Analyze a company (e.g., AAPL)
-    company_id = "AAPL"
-    risk_free_rate = 4.5
+    # Analyze an Indian stock (NSE/BSE listed)
+    company_id = "TCS.NS"  # Tata Consultancy Services (NSE format)
+    risk_free_rate = 0.045  # 4.5% as decimal
     
     result = profit_quality_analysis(company_id=company_id, risk_free_rate=risk_free_rate)
     print(result)

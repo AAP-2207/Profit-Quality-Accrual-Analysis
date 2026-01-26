@@ -38,40 +38,60 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         
         print(f"Fetching data for {company_id} from {api_base_url}...")
         
-        # Attempt to fetch financial data from the API
-        headers = {"Authorization": f"Bearer {api_key}"}
+        # Correct authentication header format for AC API
+        headers = {"x-api-key": api_key}
         
-        # Try different API endpoint structures
-        endpoints = [
-            f"{api_base_url}/api/financial-data/{company_id}",
-            f"{api_base_url}/financial-data?company={company_id}",
-            f"{api_base_url}/api/companies/{company_id}/financials",
-        ]
+        # Fetch complete financial data from AC API
+        endpoint = f"{api_base_url}/server/company/{company_id}"
         
-        data = None
-        for endpoint in endpoints:
-            try:
-                response = requests.get(endpoint, headers=headers, timeout=30)
-                if response.status_code == 200:
-                    data = response.json()
+        try:
+            response = requests.get(endpoint, headers=headers, timeout=30, allow_redirects=True)
+            response.encoding = 'utf-8'  # Force UTF-8 encoding
+            
+            if response.status_code == 401:
+                return "Error: Invalid or missing API key. Check your API_KEY in .env file"
+            
+            if response.status_code == 404:
+                return f"Error: Company {company_id} not found. Ensure you use the correct format (e.g., TCS.NS or TCS.BO)"
+            
+            if response.status_code != 200:
+                print(f"⚠ API returned status {response.status_code}, using mock data")
+                data = _generate_mock_data(company_id)
+            else:
+                api_response = response.json()
+                
+                if api_response.get("status") != "success":
+                    print(f"⚠ API error: {api_response.get('message')}, using mock data")
+                    data = _generate_mock_data(company_id)
+                else:
                     print(f"✓ Successfully fetched data from {endpoint}")
-                    break
-            except Exception as e:
-                continue
-        
-        if not data:
-            # If API fails, use mock data for testing
-            print(f"⚠ Could not fetch from API, using mock data for {company_id}")
+                    financial_data = api_response.get("data", [])
+                    
+                    # Sort by year (oldest to newest) and extract metrics
+                    financial_data.sort(key=lambda x: x.get("calendarYear", 0))
+                    
+                    data = {
+                        "pat": [float(item.get("netIncome", 0)) for item in financial_data],
+                        "cfo": [float(item.get("operatingCashFlow", item.get("netCashProvidedByOperatingActivities", 0))) for item in financial_data],
+                        "ebitda": [float(item.get("ebitda", 0)) for item in financial_data],
+                        "depreciation": [float(item.get("depreciationAndAmortization", 0)) for item in financial_data],
+                        "sales": [float(item.get("revenue", 0)) for item in financial_data],
+                        "capex": [abs(float(item.get("capitalExpenditure", 0))) for item in financial_data],
+                        "cash_balance": float(financial_data[-1].get("cashAndCashEquivalents", 0)) if financial_data else 0
+                    }
+                    
+        except Exception as e:
+            print(f"⚠ Could not connect to API: {str(e)}, using mock data")
             data = _generate_mock_data(company_id)
         
         # Extract financial metrics
-        pat_list = data.get("pat", data.get("PAT", []))
-        cfo_list = data.get("cfo", data.get("CFO", []))
-        ebitda_list = data.get("ebitda", data.get("EBITDA", []))
-        depreciation_list = data.get("depreciation", data.get("Depreciation", []))
-        sales_list = data.get("sales", data.get("Sales", data.get("revenue", [])))
-        capex_list = data.get("capex", data.get("CAPEX", data.get("capitalExpenditure", [])))
-        cash_balance = data.get("cash_balance", data.get("cash", data.get("cashBalance", 0)))
+        pat_list = data.get("pat", [])
+        cfo_list = data.get("cfo", [])
+        ebitda_list = data.get("ebitda", [])
+        depreciation_list = data.get("depreciation", [])
+        sales_list = data.get("sales", [])
+        capex_list = data.get("capex", [])
+        cash_balance = data.get("cash_balance", 0)
         
         # Ensure capex has same length
         if not capex_list or len(capex_list) < len(cfo_list):
