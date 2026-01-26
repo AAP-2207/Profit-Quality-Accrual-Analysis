@@ -32,9 +32,9 @@ class FinancialAnalyzer:
         }
     
     @staticmethod
-    def cfo_ebitda_consistency(cfo_list: List[float], ebitda_list: List[float], threshold: float = 0.7) -> float:
+    def cfo_ebitda_consistency(cfo_list: List[float], ebitda_list: List[float], threshold: float = 0.7) -> Dict[str, any]:
         """
-        Check CFO/EBITDA consistency - returns average ratio
+        Check CFO/EBITDA consistency - returns detailed breakdown
         
         Args:
             cfo_list: List of CFO values
@@ -42,19 +42,24 @@ class FinancialAnalyzer:
             threshold: Minimum acceptable ratio (default 0.7)
             
         Returns:
-            Average CFO/EBITDA ratio
+            Dict with average CFO, average EBITDA, and ratio
         """
         if len(cfo_list) < 1 or len(ebitda_list) < 1:
-            return 0.0
+            return {
+                "avg_cfo": 0.0,
+                "avg_ebitda": 0.0,
+                "ratio": 0.0
+            }
         
-        ratios = []
-        for cfo, ebitda in zip(cfo_list, ebitda_list):
-            if ebitda != 0:
-                ratio = cfo / ebitda
-                ratios.append(ratio)
+        avg_cfo = statistics.mean(cfo_list)
+        avg_ebitda = statistics.mean(ebitda_list)
+        ratio = avg_cfo / avg_ebitda if avg_ebitda != 0 else 0
         
-        avg_ratio = statistics.mean(ratios) if ratios else 0
-        return round(avg_ratio, 3)
+        return {
+            "avg_cfo": round(avg_cfo, 2),
+            "avg_ebitda": round(avg_ebitda, 2),
+            "ratio": round(ratio, 3)
+        }
     
     @staticmethod
     def accrual_quality(pat_list: List[float], cfo_list: List[float]) -> int:
@@ -132,7 +137,7 @@ class FinancialAnalyzer:
     def cash_earning_rate(cash_balance: float, risk_free_rate: float, annual_earnings: float = None) -> Dict[str, any]:
         """
         Check if company is earning above risk-free rate on cash
-        Returns score 1-10 (10=earning much more than risk-free, 1=earning less/equal)
+        Returns detailed cash earnings information
         
         Args:
             cash_balance: Current cash balance
@@ -140,43 +145,32 @@ class FinancialAnalyzer:
             annual_earnings: Annual earnings on cash (optional - interest income)
             
         Returns:
-            Dict with score and warning if data insufficient
+            Dict with cash balance, risk-free rate, expected earnings, actual earnings, and earning rate
         """
         expected_annual_earnings = (cash_balance * risk_free_rate) / 100
         
         # If annual_earnings not provided, cannot calculate properly
         if annual_earnings is None:
             return {
-                "score": 5,
-                "warning": "No interest income data provided - neutral score assigned"
+                "cash_balance": round(cash_balance, 2),
+                "risk_free_rate": risk_free_rate,
+                "expected_earnings": round(expected_annual_earnings, 2),
+                "actual_earnings": None,
+                "earning_rate": None,
+                "warning": "No interest income data provided"
             }
         
-        # Calculate how much above/below risk-free rate
-        earning_ratio = annual_earnings / expected_annual_earnings if expected_annual_earnings != 0 else 1
+        # Calculate actual earning rate
+        actual_earning_rate = (annual_earnings / cash_balance * 100) if cash_balance != 0 else 0
         
-        # Convert ratio to score
-        if earning_ratio >= 3.0:
-            score = 10
-        elif earning_ratio >= 2.5:
-            score = 9
-        elif earning_ratio >= 2.0:
-            score = 8
-        elif earning_ratio >= 1.5:
-            score = 7
-        elif earning_ratio >= 1.2:
-            score = 6
-        elif earning_ratio >= 1.0:
-            score = 5
-        elif earning_ratio >= 0.8:
-            score = 4
-        elif earning_ratio >= 0.5:
-            score = 3
-        elif earning_ratio > 0:
-            score = 2
-        else:
-            score = 1
-        
-        return {"score": score, "warning": None}
+        return {
+            "cash_balance": round(cash_balance, 2),
+            "risk_free_rate": risk_free_rate,
+            "expected_earnings": round(expected_annual_earnings, 2),
+            "actual_earnings": round(annual_earnings, 2),
+            "earning_rate": round(actual_earning_rate, 3),
+            "warning": None
+        }
     
     @staticmethod
     def fcf_quality(cfo_list: List[float], depreciation_list: List[float], capex_list: List[float]) -> str:

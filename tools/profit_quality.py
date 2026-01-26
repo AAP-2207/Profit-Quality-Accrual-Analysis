@@ -114,7 +114,18 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         pat_vs_cfo = pat_vs_cfo_result.get("value")
         years_used = pat_vs_cfo_result.get("years")
         data_warning = pat_vs_cfo_result.get("warning")
-        cash_score = cash_score_result.get("score")
+        
+        # Extract CFO/EBITDA details
+        avg_cfo = cfo_ebitda.get("avg_cfo")
+        avg_ebitda = cfo_ebitda.get("avg_ebitda")
+        cfo_ebitda_ratio = cfo_ebitda.get("ratio")
+        
+        # Extract cash earning details
+        cash_balance_val = cash_score_result.get("cash_balance")
+        risk_free_rate_val = cash_score_result.get("risk_free_rate")
+        expected_earnings = cash_score_result.get("expected_earnings")
+        actual_earnings = cash_score_result.get("actual_earnings")
+        earning_rate = cash_score_result.get("earning_rate")
         cash_warning = cash_score_result.get("warning")
         
         # Calculate cumulative PAT and CFO for detailed display
@@ -126,9 +137,24 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         if data_warning:
             warnings.append(f"⚠ {data_warning}")
         if cash_warning:
-            warnings.append(f"⚠ Cash Score: {cash_warning}")
+            warnings.append(f"⚠ {cash_warning}")
         
         warning_section = "\n".join(warnings) + "\n" if warnings else ""
+        
+        # Format point 5 based on whether we have actual earnings data
+        if actual_earnings is None:
+            cash_section = f"""5. COMPANY CASH EARNINGS ANALYSIS:
+   Cash Balance: {cash_balance_val:,.2f}
+   Risk-Free Rate: {risk_free_rate_val:.2f}%
+   Expected Earnings at Risk-Free Rate: {expected_earnings:,.2f}
+   Actual Interest Income: Data not available"""
+        else:
+            cash_section = f"""5. COMPANY CASH EARNINGS ANALYSIS:
+   Cash Balance: {cash_balance_val:,.2f}
+   Risk-Free Rate: {risk_free_rate_val:.2f}%
+   Expected Earnings at Risk-Free Rate: {expected_earnings:,.2f}
+   Actual Interest Income: {actual_earnings:,.2f}
+   Actual Earning Rate: {earning_rate:.3f}%"""
         
         output = f"""
 PROFIT QUALITY & ACCRUAL ANALYSIS REPORT
@@ -139,12 +165,14 @@ Data Period: {years_used} years
 
 {warning_section}
 1. CUMULATIVE PAT vs CFO RATIO ({years_used}Y):
-   Cumulative PAT: {cumulative_pat}
-   Cumulative CFO: {cumulative_cfo}
+   Cumulative PAT: {cumulative_pat:,.2f}
+   Cumulative CFO: {cumulative_cfo:,.2f}
    Ratio (CFO/PAT): {pat_vs_cfo}
 
-2. CFO/EBITDA CONSISTENCY RATIO:
-   Value: {cfo_ebitda}
+2. CFO/EBITDA CONSISTENCY:
+   Average CFO: {avg_cfo:,.2f}
+   Average EBITDA: {avg_ebitda:,.2f}
+   CFO/EBITDA Ratio: {cfo_ebitda_ratio}
 
 3. ACCRUAL PROFIT CONVERSION QUALITY (Score 1-10):
    Score: {accrual_score}
@@ -153,9 +181,7 @@ Data Period: {years_used} years
 4. DEPRECIATION VOLATILITY (as % of sales):
    Volatility: {dep_volatility}%
 
-5. COMPANY EARNINGS vs RISK-FREE RATE (Score 1-10):
-   Score: {cash_score}
-   (10 = Earning Much More than Risk-Free | 1 = Earning Less/Equal to Risk-Free)
+{cash_section}
 
 6. LACK OF FCF GENERATION:
    Status: {fcfe_lack}
