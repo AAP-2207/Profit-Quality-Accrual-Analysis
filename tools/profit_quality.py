@@ -97,6 +97,10 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         cash_score = cash_score_result.get("score")
         cash_warning = cash_score_result.get("warning")
         
+        # Calculate cumulative PAT and CFO for detailed display
+        cumulative_pat = sum(pat_list)
+        cumulative_cfo = sum(cfo_list)
+        
         # Format output
         warnings = []
         if data_warning:
@@ -115,7 +119,9 @@ Data Period: {years_used} years
 
 {warning_section}
 1. CUMULATIVE PAT vs CFO RATIO ({years_used}Y):
-   Value: {pat_vs_cfo}
+   Cumulative PAT: {cumulative_pat}
+   Cumulative CFO: {cumulative_cfo}
+   Ratio (CFO/PAT): {pat_vs_cfo}
 
 2. CFO/EBITDA CONSISTENCY RATIO:
    Value: {cfo_ebitda}
