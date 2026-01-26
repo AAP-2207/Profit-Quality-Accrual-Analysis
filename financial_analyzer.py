@@ -62,49 +62,38 @@ class FinancialAnalyzer:
         }
     
     @staticmethod
-    def accrual_quality(pat_list: List[float], cfo_list: List[float]) -> int:
+    def accrual_quality(pat_list: List[float], cfo_list: List[float]) -> Dict[str, any]:
         """
         Measure accrual profit conversion quality
-        Returns score 1-10 (10=low ratio/better quality, 1=high ratio/worse quality)
+        Returns detailed accrual analysis
         
         Args:
             pat_list: List of PAT values
             cfo_list: List of CFO values
             
         Returns:
-            Quality score 1-10
+            Dict with average PAT, CFO, accruals, and accrual ratio
         """
         if len(pat_list) < 1 or len(cfo_list) < 1:
-            return 5
+            return {
+                "avg_pat": 0.0,
+                "avg_cfo": 0.0,
+                "avg_accruals": 0.0,
+                "accrual_ratio": 0.0
+            }
         
+        avg_pat = statistics.mean(pat_list)
+        avg_cfo = statistics.mean(cfo_list)
         accruals = [pat - cfo for pat, cfo in zip(pat_list, cfo_list)]
-        avg_pat = statistics.mean(pat_list) if pat_list else 1
+        avg_accruals = statistics.mean(accruals)
         accrual_ratio = statistics.mean([abs(acc) / avg_pat for acc in accruals if avg_pat != 0])
         
-        # Convert ratio to score: lower ratio = higher quality = higher score
-        # Assume ratio > 0.3 = score 1, ratio < 0.05 = score 10
-        if accrual_ratio < 0.05:
-            score = 10
-        elif accrual_ratio < 0.10:
-            score = 9
-        elif accrual_ratio < 0.15:
-            score = 8
-        elif accrual_ratio < 0.20:
-            score = 7
-        elif accrual_ratio < 0.25:
-            score = 6
-        elif accrual_ratio < 0.30:
-            score = 5
-        elif accrual_ratio < 0.35:
-            score = 4
-        elif accrual_ratio < 0.40:
-            score = 3
-        elif accrual_ratio < 0.45:
-            score = 2
-        else:
-            score = 1
-        
-        return score
+        return {
+            "avg_pat": round(avg_pat, 2),
+            "avg_cfo": round(avg_cfo, 2),
+            "avg_accruals": round(avg_accruals, 2),
+            "accrual_ratio": round(accrual_ratio, 4)
+        }
     
     @staticmethod
     def depreciation_volatility(depreciation_list: List[float], sales_list: List[float]) -> float:
@@ -173,10 +162,10 @@ class FinancialAnalyzer:
         }
     
     @staticmethod
-    def fcf_quality(cfo_list: List[float], depreciation_list: List[float], capex_list: List[float]) -> str:
+    def fcf_quality(cfo_list: List[float], depreciation_list: List[float], capex_list: List[float]) -> Dict[str, any]:
         """
         Detect FCF generation gaps and lumpy FCF patterns
-        Returns "Yes" or "No" for lack of FCF generation
+        Returns detailed FCF analysis
         
         Args:
             cfo_list: List of CFO values
@@ -184,30 +173,36 @@ class FinancialAnalyzer:
             capex_list: List of capital expenditure values
             
         Returns:
-            "Yes" if lack of FCF generation detected, "No" otherwise
+            Dict with average FCF, volatility, negative years, and analysis
         
         Note: FCF = CFO - Capex (depreciation already in CFO)
         """
         if len(cfo_list) < 2:
-            return "No"
+            return {
+                "avg_fcf": 0.0,
+                "volatility_cv": 0.0,
+                "negative_years": 0,
+                "total_years": 0,
+                "avg_cfo": 0.0,
+                "avg_capex": 0.0
+            }
         
         # CORRECTED: FCF = CFO - Capex (depreciation already included in CFO)
         fcf_list = [cfo - capex for cfo, capex in zip(cfo_list, capex_list)]
         
         avg_fcf = statistics.mean(fcf_list)
+        avg_cfo = statistics.mean(cfo_list)
+        avg_capex = statistics.mean(capex_list)
         fcf_volatility = statistics.stdev(fcf_list) if len(fcf_list) > 1 else 0
         cv = (fcf_volatility / avg_fcf * 100) if avg_fcf != 0 else 0
         
         negative_years = sum(1 for fcf in fcf_list if fcf < 0)
         
-        # Detect lack of FCF generation:
-        # 1. More than 30% of years with negative FCF
-        # 2. Very high volatility (>50%)
-        # 3. Average FCF is negative
-        lack_of_fcf = (
-            negative_years / len(fcf_list) > 0.3 or 
-            cv > 50 or 
-            avg_fcf < 0
-        )
-        
-        return "Yes" if lack_of_fcf else "No"
+        return {
+            "avg_fcf": round(avg_fcf, 2),
+            "volatility_cv": round(cv, 2),
+            "negative_years": negative_years,
+            "total_years": len(fcf_list),
+            "avg_cfo": round(avg_cfo, 2),
+            "avg_capex": round(avg_capex, 2)
+        }

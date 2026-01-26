@@ -105,10 +105,10 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         
         pat_vs_cfo_result = analyzer.cumulative_pat_vs_cfo(pat_list, cfo_list)
         cfo_ebitda = analyzer.cfo_ebitda_consistency(cfo_list, ebitda_list)
-        accrual_score = analyzer.accrual_quality(pat_list, cfo_list)
+        accrual_result = analyzer.accrual_quality(pat_list, cfo_list)
         dep_volatility = analyzer.depreciation_volatility(depreciation_list, sales_list)
         cash_score_result = analyzer.cash_earning_rate(cash_balance, risk_free_rate_pct)
-        fcfe_lack = analyzer.fcf_quality(cfo_list, depreciation_list, capex_list)
+        fcf_result = analyzer.fcf_quality(cfo_list, depreciation_list, capex_list)
         
         # Extract values from dicts
         pat_vs_cfo = pat_vs_cfo_result.get("value")
@@ -120,6 +120,12 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         avg_ebitda = cfo_ebitda.get("avg_ebitda")
         cfo_ebitda_ratio = cfo_ebitda.get("ratio")
         
+        # Extract accrual quality details
+        avg_pat = accrual_result.get("avg_pat")
+        avg_cfo_accrual = accrual_result.get("avg_cfo")
+        avg_accruals = accrual_result.get("avg_accruals")
+        accrual_ratio = accrual_result.get("accrual_ratio")
+        
         # Extract cash earning details
         cash_balance_val = cash_score_result.get("cash_balance")
         risk_free_rate_val = cash_score_result.get("risk_free_rate")
@@ -127,6 +133,14 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         actual_earnings = cash_score_result.get("actual_earnings")
         earning_rate = cash_score_result.get("earning_rate")
         cash_warning = cash_score_result.get("warning")
+        
+        # Extract FCF quality details
+        avg_fcf = fcf_result.get("avg_fcf")
+        fcf_volatility = fcf_result.get("volatility_cv")
+        negative_years = fcf_result.get("negative_years")
+        total_years = fcf_result.get("total_years")
+        avg_cfo_fcf = fcf_result.get("avg_cfo")
+        avg_capex = fcf_result.get("avg_capex")
         
         # Calculate cumulative PAT and CFO for detailed display
         cumulative_pat = sum(pat_list)
@@ -174,18 +188,24 @@ Data Period: {years_used} years
    Average EBITDA: {avg_ebitda:,.2f}
    CFO/EBITDA Ratio: {cfo_ebitda_ratio}
 
-3. ACCRUAL PROFIT CONVERSION QUALITY (Score 1-10):
-   Score: {accrual_score}
-   (10 = Low Ratio/Better Quality | 1 = High Ratio/Worse Quality)
+3. ACCRUAL PROFIT CONVERSION QUALITY:
+   Average PAT: {avg_pat:,.2f}
+   Average CFO: {avg_cfo_accrual:,.2f}
+   Average Accruals (PAT - CFO): {avg_accruals:,.2f}
+   Accrual Ratio (Accruals/PAT): {accrual_ratio}
+   (Lower ratio = Better quality)
 
 4. DEPRECIATION VOLATILITY (as % of sales):
    Volatility: {dep_volatility}%
 
 {cash_section}
 
-6. LACK OF FCF GENERATION:
-   Status: {fcfe_lack}
-   (Note: FCF = CFO - Capex)
+6. FREE CASH FLOW ANALYSIS:
+   Average CFO: {avg_cfo_fcf:,.2f}
+   Average Capex: {avg_capex:,.2f}
+   Average FCF (CFO - Capex): {avg_fcf:,.2f}
+   FCF Volatility (CV%): {fcf_volatility:.2f}%
+   Negative FCF Years: {negative_years} out of {total_years}
 
 ========================================
 Analysis Complete
