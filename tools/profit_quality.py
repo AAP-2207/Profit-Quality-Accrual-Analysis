@@ -1,34 +1,76 @@
 """
-Profit Quality Analysis Tool
-Direct function that fetches data and returns analysis results
+Profit Quality Analysis Tool - LangChain Tool
+Fetches financial data from API and performs comprehensive profit quality analysis
 """
 
+# IMPORTS: Required libraries including LangChain tool decorator
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 import os
 import requests
 from typing import Dict, List
 from dotenv import load_dotenv
 import sys
+
+# Set UTF-8 encoding for Windows console
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from financial_analyzer import FinancialAnalyzer
 
 load_dotenv()
 
+# API Configuration
+BASE_URL = "https://ac-api-server.vercel.app"
+API_KEY = os.getenv("AC_API_KEY")
+
+# INPUT SCHEMA: Configuration object that LangChain reads
+class ProfitQualityInput(BaseModel):
+    """Input schema for profit quality analysis tool"""
+    company_id: str = Field(
+        ...,
+        description="Company ticker symbol (e.g., RELIANCE.BO, TCS.NS). Use Yahoo Finance format with exchange suffix."
+    )
+    risk_free_rate: float = Field(
+        ...,
+        description="Risk-free rate as decimal (e.g., 0.07 for 7%, 0.045 for 4.5%). Used to compare company cash earnings.",
+        ge=0.0,
+        le=1.0
+    )
+
+# TOOL DEFINITION: LangChain tool with name, description, and schema
+@tool("profit_quality_analysis", args_schema=ProfitQualityInput, return_direct=True)
 def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
     """
-    Analyzes profit quality for a company using its ID
+    Performs comprehensive profit quality and accrual analysis for a company.
+    
+    Analyzes 6 key metrics:
+    1. Cumulative PAT vs CFO Ratio - measures cash conversion of profits
+    2. CFO/EBITDA Consistency - validates operational cash generation
+    3. Accrual Quality - detects earnings manipulation through accruals
+    4. Depreciation Volatility - identifies inconsistent depreciation policies
+    5. Cash Earning Rate - compares returns on cash vs risk-free rate
+    6. Free Cash Flow Quality - assesses FCF generation and volatility
+    
+    Fetches 10 years of financial data from internal API and returns detailed analysis.
     
     Args:
-        company_id: Company identifier (ticker or ID)
+        company_id: Company ticker symbol (e.g., RELIANCE.BO)
         risk_free_rate: Risk-free rate as decimal (e.g., 0.07 for 7%)
         
     Returns:
-        Formatted string with all analysis results
+        Formatted string with comprehensive analysis results including all metrics, ratios, and quality scores
     """
+    # Validate symbol format
+    if not (company_id.endswith(".NS") or company_id.endswith(".BO")):
+        return f"Error: Invalid symbol format '{company_id}'. Please use format: SYMBOL.NS (NSE) or SYMBOL.BO (BSE)"
+    
     try:
         # Fetch data from API
-        api_key = os.getenv("API_KEY")
-        api_base_url = os.getenv("API_BASE_URL")
+        api_key = API_KEY
+        api_base_url = BASE_URL
         
         if not api_key or not api_base_url:
             return "Error: API_KEY and API_BASE_URL must be set in .env file"
@@ -77,7 +119,8 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
                         "depreciation": [float(item.get("depreciationAndAmortization", 0)) for item in financial_data],
                         "sales": [float(item.get("revenue", 0)) for item in financial_data],
                         "capex": [abs(float(item.get("capitalExpenditure", 0))) for item in financial_data],
-                        "cash_balance": float(financial_data[-1].get("cashAndCashEquivalents", 0)) if financial_data else 0
+                        "cash_balance": float(financial_data[-1].get("cashAndCashEquivalents", 0)) if financial_data else 0,
+                        "interest_income": float(financial_data[-1].get("interestIncome", 0)) if financial_data else None
                     }
                     
         except Exception as e:
@@ -92,6 +135,7 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         sales_list = data.get("sales", [])
         capex_list = data.get("capex", [])
         cash_balance = data.get("cash_balance", 0)
+        interest_income = data.get("interest_income", None)
         
         # Ensure capex has same length
         if not capex_list or len(capex_list) < len(cfo_list):
@@ -100,14 +144,14 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         # Convert risk_free_rate from decimal to percentage
         risk_free_rate_pct = risk_free_rate * 100
         
-        # Run analysis
+        # Run analysis (EXECUTION BLOCK: Core calculations and data processing)
         analyzer = FinancialAnalyzer()
         
         pat_vs_cfo_result = analyzer.cumulative_pat_vs_cfo(pat_list, cfo_list)
         cfo_ebitda = analyzer.cfo_ebitda_consistency(cfo_list, ebitda_list)
         accrual_result = analyzer.accrual_quality(pat_list, cfo_list)
         dep_volatility = analyzer.depreciation_volatility(depreciation_list, sales_list)
-        cash_score_result = analyzer.cash_earning_rate(cash_balance, risk_free_rate_pct)
+        cash_score_result = analyzer.cash_earning_rate(cash_balance, risk_free_rate_pct, interest_income)
         fcf_result = analyzer.fcf_quality(cfo_list, depreciation_list, capex_list)
         
         # Extract values from dicts
@@ -146,7 +190,7 @@ def profit_quality_analysis(company_id: str, risk_free_rate: float) -> str:
         cumulative_pat = sum(pat_list)
         cumulative_cfo = sum(cfo_list)
         
-        # Format output
+        # OUTPUT: Single string containing all analysis results (can be as long as needed)
         warnings = []
         if data_warning:
             warnings.append(f"⚠ {data_warning}")
@@ -228,3 +272,50 @@ def _generate_mock_data(company_id: str) -> Dict:
         "capex": [30, 32, 35, 33, 38, 40, 42, 41, 45, 48],
         "cash_balance": 500
     }
+
+
+# Test the tool
+if __name__ == "__main__":
+    # Check if API key is loaded
+    if not API_KEY or API_KEY == "your_api_key_here":
+        print("❌ ERROR: API key not found!")
+        print("Please set your API key in the .env file:")
+        print("  1. Create a .env file (or edit existing)")
+        print("  2. Set AC_API_KEY=your_actual_api_key")
+        print("  3. Save the file and run again")
+        exit(1)
+    
+    print("PROFIT QUALITY ANALYSIS TOOL - PRODUCTION TEST")
+    print("=" * 70)
+    print("Purpose: Comprehensive profit quality and accrual analysis")
+    print("For use with LangChain/LangGraph AI agents")
+    print("=" * 70)
+    
+    # Test 1: RELIANCE.BO - Latest data with 7% risk-free rate
+    print("\n[TEST 1] Reliance Industries (RELIANCE.BO) - 7% Risk-Free Rate")
+    print("-" * 70)
+    try:
+        result = profit_quality_analysis.invoke({"company_id": "RELIANCE.BO", "risk_free_rate": 0.07})
+        print(result)
+        print("\n✓ Test 1 Passed")
+    except Exception as e:
+        print(f"✗ Test 1 Failed: {e}")
+    
+    # Test 2: TCS.NS - Latest data with 6% risk-free rate
+    print("\n" + "=" * 70)
+    print("\n[TEST 2] Tata Consultancy Services (TCS.NS) - 6% Risk-Free Rate")
+    print("-" * 70)
+    try:
+        result = profit_quality_analysis.invoke({"company_id": "TCS.NS", "risk_free_rate": 0.06})
+        print(result)
+        print("\n✓ Test 2 Passed")
+    except Exception as e:
+        print(f"✗ Test 2 Failed: {e}")
+    
+    print("\n" + "=" * 70)
+    print("\n✅ ALL TESTS COMPLETED - Tool is ready!")
+    print("=" * 70)
+    print("\nTo use this tool in your LangGraph agent:")
+    print("  from tools.profit_quality import profit_quality_analysis")
+    print("  result = profit_quality_analysis.invoke({'company_id': 'RELIANCE.BO', 'risk_free_rate': 0.07})")
+    print("=" * 70)
